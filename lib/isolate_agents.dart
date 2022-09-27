@@ -20,13 +20,13 @@ enum _Commands {
 void _isolateMain<T>(SendPort sendPort) {
   ReceivePort receivePort = ReceivePort();
   sendPort.send(_Command(_Commands.Init, arg0: receivePort.sendPort));
-  T? state = null;
+  late T state;
   receivePort.listen((value) {
     _Command command = value;
     if (command.code == _Commands.Init) {
       state = command.arg0 as T;
     } else if (command.code == _Commands.Exec) {
-      final func = command.arg0 as T? Function(T?);
+      final func = command.arg0 as T Function(T);
       state = func(state);
       sendPort.send(_Command(_Commands.Ack));
     } else if (command.code == _Commands.Deref) {
@@ -46,7 +46,7 @@ class Agent<T> {
   final SendPort _sendPort;
   final ReceivePort _receivePort;
   final Queue<Completer<void>> _completers;
-  final Queue<Completer<T?>> _derefCompleters;
+  final Queue<Completer<T>> _derefCompleters;
 
   Agent._(this._isolate, this._sendPort, this._receivePort, this._completers,
       this._derefCompleters);
@@ -57,7 +57,7 @@ class Agent<T> {
         await Isolate.spawn(_isolateMain<T>, receivePort.sendPort);
     final completer = Completer<SendPort>();
     Queue<Completer<void>> completers = Queue<Completer<void>>();
-    Queue<Completer<T?>> derefCompleters = Queue<Completer<T?>>();
+    Queue<Completer<T>> derefCompleters = Queue<Completer<T>>();
     receivePort.listen((value) {
       _Command command = value;
       if (command.code == _Commands.Init) {
@@ -65,7 +65,7 @@ class Agent<T> {
       } else if (command.code == _Commands.Ack) {
         completers.removeLast().complete();
       } else if (command.code == _Commands.Deref) {
-        derefCompleters.removeLast().complete(command.arg0 as T?);
+        derefCompleters.removeLast().complete(command.arg0 as T);
       }
     });
     SendPort sendPort = await completer.future;
@@ -75,7 +75,7 @@ class Agent<T> {
   }
 
   /// Send a closure that will be executed in the Agent's isolate.
-  Future<void> send(T? Function(T?) func) async {
+  Future<void> send(T Function(T) func) async {
     _sendPort.send(_Command(_Commands.Exec, arg0: func));
     Completer<void> completer = Completer<void>();
     _completers.addFirst(completer);
@@ -83,18 +83,18 @@ class Agent<T> {
   }
 
   /// Query the current value of the agent.
-  Future<T?> deref() {
+  Future<T> deref() {
     _sendPort.send(_Command(_Commands.Deref));
-    Completer<T?> completer = Completer<T?>();
+    Completer<T> completer = Completer<T>();
     _derefCompleters.addFirst(completer);
     return completer.future;
   }
 
   /// Kills the agent and returns its state value. This is faster thank calling
   /// [deref] then [kill] since Dart will elide the copy of the result.
-  Future<T?> exit() {
+  Future<T> exit() {
     _sendPort.send(_Command(_Commands.Exit));
-    Completer<T?> completer = Completer<T?>();
+    Completer<T> completer = Completer<T>();
     _derefCompleters.addFirst(completer);
     return completer.future;
   }
