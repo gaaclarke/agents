@@ -14,6 +14,7 @@ enum _Commands {
   Exec,
   Ack,
   Deref,
+  Exit,
 }
 
 void _isolateMain<T>(SendPort sendPort) {
@@ -30,6 +31,8 @@ void _isolateMain<T>(SendPort sendPort) {
       sendPort.send(_Command(_Commands.Ack));
     } else if (command.code == _Commands.Deref) {
       sendPort.send(_Command(_Commands.Deref, arg0: state));
+    } else if (command.code == _Commands.Exit) {
+      Isolate.exit(sendPort, _Command(_Commands.Deref, arg0: state));
     }
   });
 }
@@ -82,6 +85,15 @@ class Agent<T> {
   /// Query the current value of the agent.
   Future<T?> deref() {
     _sendPort.send(_Command(_Commands.Deref));
+    Completer<T?> completer = Completer<T?>();
+    _derefCompleters.addFirst(completer);
+    return completer.future;
+  }
+
+  /// Kills the agent and returns its state value. This is faster thank calling
+  /// [deref] then [kill] since Dart will elide the copy of the result.
+  Future<T?> exit() {
+    _sendPort.send(_Command(_Commands.Exit));
     Completer<T?> completer = Completer<T?>();
     _derefCompleters.addFirst(completer);
     return completer.future;
