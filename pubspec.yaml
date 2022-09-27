@@ -1,0 +1,8 @@
+name: isolate_agents
+description: Agents are state that lives on a background isolate.
+version: 0.0.1
+homepage: https://github.com/gaaclarke/agents
+environment:
+  sdk: '>=2.17.0 <3.0.0'
+dev_dependencies:
+ test: ^1.16.5
