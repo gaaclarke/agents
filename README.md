@@ -15,7 +15,7 @@ import 'package:isolate_agents/isolate_agents.dart';
 void main() async {
   Agent<int> agent = await Agent.create(1);
   // The following add operation is executed in the Agent's isolate.
-  agent.send((int? x) => x! + 1);
+  agent.send((int x) => x + 1);
   assert(2 == await agent.exit());
 }
 ```

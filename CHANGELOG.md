@@ -1,3 +1,7 @@
+# 0.0.3
+
+* Makes Agents null-safe.
+
 # 0.0.2
 
 * Updates README.md
