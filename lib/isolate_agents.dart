@@ -15,6 +15,7 @@ enum _Commands {
   Ack,
   Deref,
   Exit,
+  Query,
 }
 
 void _isolateMain<T>(SendPort sendPort) {
@@ -33,6 +34,9 @@ void _isolateMain<T>(SendPort sendPort) {
       sendPort.send(_Command(_Commands.Deref, arg0: state));
     } else if (command.code == _Commands.Exit) {
       Isolate.exit(sendPort, _Command(_Commands.Deref, arg0: state));
+    } else if (command.code == _Commands.Query) {
+      Object? Function(T) func = command.arg0 as Object? Function(T);
+      sendPort.send(_Command(_Commands.Deref, arg0: func(state)));
     }
   });
 }
@@ -46,7 +50,7 @@ class Agent<T> {
   final SendPort _sendPort;
   final ReceivePort _receivePort;
   final Queue<Completer<void>> _completers;
-  final Queue<Completer<T>> _derefCompleters;
+  final Queue<Completer<Object?>> _derefCompleters;
 
   Agent._(this._isolate, this._sendPort, this._receivePort, this._completers,
       this._derefCompleters);
@@ -86,6 +90,17 @@ class Agent<T> {
   Future<T> deref() {
     _sendPort.send(_Command(_Commands.Deref));
     Completer<T> completer = Completer<T>();
+    _derefCompleters.addFirst(completer);
+    return completer.future;
+  }
+
+  /// Queries the [Agent]'s state with a closure.
+  ///
+  /// This is useful for reading a portion of the state held by the agent to
+  /// avoid the overhead of reading the whole state.
+  Future<U> query<U>(U Function(T state) queryFunc) {
+    _sendPort.send(_Command(_Commands.Query, arg0: queryFunc));
+    Completer<U> completer = Completer<U>();
     _derefCompleters.addFirst(completer);
     return completer.future;
   }

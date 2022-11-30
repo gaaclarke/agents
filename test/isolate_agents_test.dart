@@ -14,4 +14,10 @@ void main() {
     agent.send((x) => x + 1);
     expect(2, await agent.exit());
   });
+
+  test('query', () async {
+    final Agent<int> agent = await Agent.create(1);
+    final int value = await agent.query((state) => state + 1);
+    expect(2, value);
+  });
 }

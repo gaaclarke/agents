@@ -1,3 +1,7 @@
+# 0.0.4
+
+* Adds `query` method.
+
 # 0.0.3
 
 * Makes Agents null-safe.
