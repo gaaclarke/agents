@@ -36,7 +36,7 @@ void _isolateMain<T>(SendPort sendPort) {
       Isolate.exit(sendPort, _Command(_Commands.Deref, arg0: state));
     } else if (command.code == _Commands.Query) {
       Object? Function(T) func = command.arg0 as Object? Function(T);
-      sendPort.send(_Command(_Commands.Deref, arg0: func(state)));
+      sendPort.send(_Command(_Commands.Query, arg0: func(state)));
     }
   });
 }
@@ -61,7 +61,7 @@ class Agent<T> {
         await Isolate.spawn(_isolateMain<T>, receivePort.sendPort);
     final completer = Completer<SendPort>();
     Queue<Completer<void>> completers = Queue<Completer<void>>();
-    Queue<Completer<T>> derefCompleters = Queue<Completer<T>>();
+    Queue<Completer<Object?>> derefCompleters = Queue<Completer<Object?>>();
     receivePort.listen((value) {
       _Command command = value;
       if (command.code == _Commands.Init) {
@@ -70,6 +70,8 @@ class Agent<T> {
         completers.removeLast().complete();
       } else if (command.code == _Commands.Deref) {
         derefCompleters.removeLast().complete(command.arg0 as T);
+      } else if (command.code == _Commands.Query) {
+        derefCompleters.removeLast().complete(command.arg0);
       }
     });
     SendPort sendPort = await completer.future;

@@ -1,3 +1,7 @@
+# 0.0.5
+
+* Fixes `query` calls where the return types differ from the agent type.
+
 # 0.0.4
 
 * Adds `query` method.

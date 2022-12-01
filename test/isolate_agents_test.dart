@@ -17,7 +17,7 @@ void main() {
 
   test('query', () async {
     final Agent<int> agent = await Agent.create(1);
-    final int value = await agent.query((state) => state + 1);
-    expect(2, value);
+    final String value = await agent.query((state) => String.fromCharCode(65 + state));
+    expect('B', value);
   });
 }
