@@ -1,3 +1,8 @@
+# 0.0.6
+
+* Switched implementation to use SendPort API instead of completers so that
+  Agents can be sent across Isolates.
+
 # 0.0.5
 
 * Fixes `query` calls where the return types differ from the agent type.

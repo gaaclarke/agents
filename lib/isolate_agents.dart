@@ -1,18 +1,17 @@
 import 'dart:isolate';
 import 'dart:async';
-import 'dart:collection' show Queue;
 
 class _Command {
   final _Commands code;
+  final SendPort? sendPort;
   final Object? arg0;
 
-  _Command(this.code, {Object? this.arg0});
+  _Command(this.code, {SendPort? this.sendPort, Object? this.arg0});
 }
 
 enum _Commands {
   Init,
   Exec,
-  Ack,
   Deref,
   Exit,
   Query,
@@ -29,14 +28,14 @@ void _isolateMain<T>(SendPort sendPort) {
     } else if (command.code == _Commands.Exec) {
       final func = command.arg0 as T Function(T);
       state = func(state);
-      sendPort.send(_Command(_Commands.Ack));
+      command.sendPort!.send(null);
     } else if (command.code == _Commands.Deref) {
-      sendPort.send(_Command(_Commands.Deref, arg0: state));
+      command.sendPort!.send(state);
     } else if (command.code == _Commands.Exit) {
-      Isolate.exit(sendPort, _Command(_Commands.Deref, arg0: state));
+      Isolate.exit(command.sendPort!, state);
     } else if (command.code == _Commands.Query) {
       Object? Function(T) func = command.arg0 as Object? Function(T);
-      sendPort.send(_Command(_Commands.Query, arg0: func(state)));
+      command.sendPort!.send(func(state));
     }
   });
 }
@@ -48,77 +47,64 @@ void _isolateMain<T>(SendPort sendPort) {
 class Agent<T> {
   final Isolate _isolate;
   final SendPort _sendPort;
-  final ReceivePort _receivePort;
-  final Queue<Completer<void>> _completers;
-  final Queue<Completer<Object?>> _derefCompleters;
 
-  Agent._(this._isolate, this._sendPort, this._receivePort, this._completers,
-      this._derefCompleters);
+  Agent._(this._isolate, this._sendPort);
 
   static Future<Agent<T>> create<T>(T initialState) async {
     ReceivePort receivePort = ReceivePort();
     Isolate isolate =
         await Isolate.spawn(_isolateMain<T>, receivePort.sendPort);
     final completer = Completer<SendPort>();
-    Queue<Completer<void>> completers = Queue<Completer<void>>();
-    Queue<Completer<Object?>> derefCompleters = Queue<Completer<Object?>>();
     receivePort.listen((value) {
       _Command command = value;
       if (command.code == _Commands.Init) {
         completer.complete(command.arg0 as SendPort);
-      } else if (command.code == _Commands.Ack) {
-        completers.removeLast().complete();
-      } else if (command.code == _Commands.Deref) {
-        derefCompleters.removeLast().complete(command.arg0 as T);
-      } else if (command.code == _Commands.Query) {
-        derefCompleters.removeLast().complete(command.arg0);
       }
     });
     SendPort sendPort = await completer.future;
     sendPort.send(_Command(_Commands.Init, arg0: initialState));
-    return Agent<T>._(
-        isolate, sendPort, receivePort, completers, derefCompleters);
+    return Agent<T>._(isolate, sendPort);
   }
 
   /// Send a closure that will be executed in the Agent's isolate.
   Future<void> send(T Function(T) func) async {
-    _sendPort.send(_Command(_Commands.Exec, arg0: func));
-    Completer<void> completer = Completer<void>();
-    _completers.addFirst(completer);
-    return completer.future;
+    ReceivePort receivePort = ReceivePort();
+    _sendPort.send(
+        _Command(_Commands.Exec, sendPort: receivePort.sendPort, arg0: func));
+    return receivePort.first;
   }
 
   /// Query the current value of the agent.
-  Future<T> deref() {
-    _sendPort.send(_Command(_Commands.Deref));
-    Completer<T> completer = Completer<T>();
-    _derefCompleters.addFirst(completer);
-    return completer.future;
+  Future<T> deref() async {
+    ReceivePort receivePort = ReceivePort();
+    _sendPort.send(_Command(_Commands.Deref, sendPort: receivePort.sendPort));
+    dynamic value = await receivePort.first;
+    return value as T;
   }
 
   /// Queries the [Agent]'s state with a closure.
   ///
   /// This is useful for reading a portion of the state held by the agent to
   /// avoid the overhead of reading the whole state.
-  Future<U> query<U>(U Function(T state) queryFunc) {
-    _sendPort.send(_Command(_Commands.Query, arg0: queryFunc));
-    Completer<U> completer = Completer<U>();
-    _derefCompleters.addFirst(completer);
-    return completer.future;
+  Future<U> query<U>(U Function(T state) queryFunc) async {
+    ReceivePort receivePort = ReceivePort();
+    _sendPort.send(_Command(_Commands.Query,
+        sendPort: receivePort.sendPort, arg0: queryFunc));
+    dynamic value = await receivePort.first;
+    return value as U;
   }
 
   /// Kills the agent and returns its state value. This is faster thank calling
   /// [deref] then [kill] since Dart will elide the copy of the result.
-  Future<T> exit() {
-    _sendPort.send(_Command(_Commands.Exit));
-    Completer<T> completer = Completer<T>();
-    _derefCompleters.addFirst(completer);
-    return completer.future;
+  Future<T> exit() async {
+    ReceivePort receivePort = ReceivePort();
+    _sendPort.send(_Command(_Commands.Exit, sendPort: receivePort.sendPort));
+    dynamic value = await receivePort.first;
+    return value as T;
   }
 
   /// Kills the agent's isolate.
   void kill() {
-    _receivePort.close();
     _isolate.kill();
   }
 }
