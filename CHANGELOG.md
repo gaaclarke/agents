@@ -1,3 +1,7 @@
+# 0.0.7
+
+* Adds `Agent.createWithResult`.
+
 # 0.0.6
 
 * Switched implementation to use SendPort API instead of completers so that

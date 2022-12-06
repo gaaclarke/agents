@@ -24,7 +24,7 @@ void _isolateMain<T>(SendPort sendPort) {
   receivePort.listen((value) {
     _Command command = value;
     if (command.code == _Commands.Init) {
-      state = command.arg0 as T;
+      state = (command.arg0 as T Function())();
     } else if (command.code == _Commands.Exec) {
       final func = command.arg0 as T Function(T);
       state = func(state);
@@ -50,7 +50,8 @@ class Agent<T> {
 
   Agent._(this._isolate, this._sendPort);
 
-  static Future<Agent<T>> create<T>(T initialState) async {
+  /// Creates the [Agent] whose initial state is the result of executing [func].
+  static Future<Agent<T>> createWithResult<T>(T Function() func) async {
     ReceivePort receivePort = ReceivePort();
     Isolate isolate =
         await Isolate.spawn(_isolateMain<T>, receivePort.sendPort);
@@ -62,8 +63,16 @@ class Agent<T> {
       }
     });
     SendPort sendPort = await completer.future;
-    sendPort.send(_Command(_Commands.Init, arg0: initialState));
+    sendPort.send(_Command(_Commands.Init, arg0: func));
     return Agent<T>._(isolate, sendPort);
+  }
+
+  /// Create the [Agent] with the initial value being [initialState].
+  ///
+  /// Note: It may be faster to use [createWithResult] since it avoids
+  /// sending the [initialState].
+  static Future<Agent<T>> create<T>(T initialState) async {
+    return createWithResult(() => initialState);
   }
 
   /// Send a closure that will be executed in the Agent's isolate.
