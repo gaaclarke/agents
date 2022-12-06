@@ -1,3 +1,14 @@
+# 0.1.0
+
+* Adds `Agent.error` and `Agent.resetError`.
+* Adds protection from talking to killed Agents.
+* Updated naming of methods based on feedback:
+  - deref -> read
+  - query -> **eliminated for read**
+  - create -> **eliminated for new create**
+  - createWithResult -> create
+  - send -> update
+
 # 0.0.7
 
 * Adds `Agent.createWithResult`.
