@@ -1,39 +1,39 @@
-import 'dart:isolate';
 import 'dart:async';
+import 'dart:isolate';
 
 class _Command {
   final _Commands code;
   final SendPort? sendPort;
   final Object? arg0;
 
-  _Command(this.code, {SendPort? this.sendPort, Object? this.arg0});
+  _Command(this.code, {this.sendPort, this.arg0});
 }
 
 enum _Commands {
-  Init,
-  Exec,
-  Deref,
-  Exit,
-  Query,
+  init,
+  exec,
+  deref,
+  exit,
+  query,
 }
 
 void _isolateMain<T>(SendPort sendPort) {
   ReceivePort receivePort = ReceivePort();
-  sendPort.send(_Command(_Commands.Init, arg0: receivePort.sendPort));
+  sendPort.send(_Command(_Commands.init, arg0: receivePort.sendPort));
   late T state;
   receivePort.listen((value) {
     _Command command = value;
-    if (command.code == _Commands.Init) {
+    if (command.code == _Commands.init) {
       state = (command.arg0 as T Function())();
-    } else if (command.code == _Commands.Exec) {
+    } else if (command.code == _Commands.exec) {
       final func = command.arg0 as T Function(T);
       state = func(state);
       command.sendPort!.send(null);
-    } else if (command.code == _Commands.Deref) {
+    } else if (command.code == _Commands.deref) {
       command.sendPort!.send(state);
-    } else if (command.code == _Commands.Exit) {
+    } else if (command.code == _Commands.exit) {
       Isolate.exit(command.sendPort!, state);
-    } else if (command.code == _Commands.Query) {
+    } else if (command.code == _Commands.query) {
       Object? Function(T) func = command.arg0 as Object? Function(T);
       command.sendPort!.send(func(state));
     }
@@ -58,12 +58,12 @@ class Agent<T> {
     final completer = Completer<SendPort>();
     receivePort.listen((value) {
       _Command command = value;
-      if (command.code == _Commands.Init) {
+      if (command.code == _Commands.init) {
         completer.complete(command.arg0 as SendPort);
       }
     });
     SendPort sendPort = await completer.future;
-    sendPort.send(_Command(_Commands.Init, arg0: func));
+    sendPort.send(_Command(_Commands.init, arg0: func));
     return Agent<T>._(isolate, sendPort);
   }
 
@@ -79,14 +79,14 @@ class Agent<T> {
   Future<void> send(T Function(T) func) async {
     ReceivePort receivePort = ReceivePort();
     _sendPort.send(
-        _Command(_Commands.Exec, sendPort: receivePort.sendPort, arg0: func));
+        _Command(_Commands.exec, sendPort: receivePort.sendPort, arg0: func));
     return receivePort.first;
   }
 
   /// Query the current value of the agent.
   Future<T> deref() async {
     ReceivePort receivePort = ReceivePort();
-    _sendPort.send(_Command(_Commands.Deref, sendPort: receivePort.sendPort));
+    _sendPort.send(_Command(_Commands.deref, sendPort: receivePort.sendPort));
     dynamic value = await receivePort.first;
     return value as T;
   }
@@ -97,7 +97,7 @@ class Agent<T> {
   /// avoid the overhead of reading the whole state.
   Future<U> query<U>(U Function(T state) queryFunc) async {
     ReceivePort receivePort = ReceivePort();
-    _sendPort.send(_Command(_Commands.Query,
+    _sendPort.send(_Command(_Commands.query,
         sendPort: receivePort.sendPort, arg0: queryFunc));
     dynamic value = await receivePort.first;
     return value as U;
@@ -107,7 +107,7 @@ class Agent<T> {
   /// [deref] then [kill] since Dart will elide the copy of the result.
   Future<T> exit() async {
     ReceivePort receivePort = ReceivePort();
-    _sendPort.send(_Command(_Commands.Exit, sendPort: receivePort.sendPort));
+    _sendPort.send(_Command(_Commands.exit, sendPort: receivePort.sendPort));
     dynamic value = await receivePort.first;
     return value as T;
   }
