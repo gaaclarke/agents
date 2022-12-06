@@ -103,7 +103,7 @@ class Agent<T> {
     return value as U;
   }
 
-  /// Kills the agent and returns its state value. This is faster thank calling
+  /// Kills the agent and returns its state value. This is faster than calling
   /// [deref] then [kill] since Dart will elide the copy of the result.
   Future<T> exit() async {
     ReceivePort receivePort = ReceivePort();
