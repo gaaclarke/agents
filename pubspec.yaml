@@ -1,6 +1,6 @@
 name: isolate_agents
 description: Agents are state that lives on a background isolate.
-version: 0.0.8
+version: 0.1.0
 repository: https://github.com/gaaclarke/agents
 
 environment:
