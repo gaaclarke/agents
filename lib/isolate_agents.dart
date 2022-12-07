@@ -25,21 +25,31 @@ enum _Commands {
   resetError,
 }
 
+class AgentError {
+  AgentError(this.error, this.stackTrace);
+  final Object error;
+  final StackTrace stackTrace;
+}
+
 void _isolateMain<T>(SendPort sendPort) {
   ReceivePort receivePort = ReceivePort();
-  sendPort.send(_Command(_Commands.init, arg0: receivePort.sendPort));
+  sendPort.send(receivePort.sendPort);
   late T state;
-  Object? error;
+  AgentError? error;
   receivePort.listen((value) {
     _Command command = value;
     if (command.code == _Commands.init) {
-      state = (command.arg0 as T Function())();
+      try {
+        state = (command.arg0 as T Function())();
+      } catch (e, stackTrace) {
+        error = AgentError(e, stackTrace);
+      }
     } else if (command.code == _Commands.exec) {
       try {
         final func = command.arg0 as T Function(T);
         state = func(state);
-      } catch (e) {
-        error = e;
+      } catch (e, stackTrace) {
+        error = AgentError(e, stackTrace);
       }
       command.sendPort!.send(null);
     } else if (command.code == _Commands.exit) {
@@ -49,8 +59,8 @@ void _isolateMain<T>(SendPort sendPort) {
       try {
         Object? Function(T) func = command.arg0 as Object? Function(T);
         result = func(state);
-      } catch (e) {
-        error = e;
+      } catch (e, stackTrace) {
+        error = AgentError(e, stackTrace);
       }
       if (error != null) {
         command.sendPort!.send(_Result<dynamic>(value: null, error: error));
@@ -81,15 +91,9 @@ class Agent<T> {
     ReceivePort receivePort = ReceivePort();
     Isolate isolate =
         await Isolate.spawn(_isolateMain<T>, receivePort.sendPort);
-    final completer = Completer<SendPort>();
-    receivePort.listen((value) {
-      _Command command = value;
-      if (command.code == _Commands.init) {
-        completer.complete(command.arg0 as SendPort);
-      }
-    });
-    SendPort sendPort = await completer.future;
+    SendPort sendPort = await receivePort.first;
     sendPort.send(_Command(_Commands.init, arg0: func));
+    receivePort.close();
     return Agent<T>._(isolate, sendPort);
   }
 
@@ -107,7 +111,7 @@ class Agent<T> {
 
   /// Reads the [Agent]'s state with a closure.
   ///
-  /// [query] is useful for reading a portion of the state held by the agent to
+  /// [read] is useful for reading a portion of the state held by the agent to
   /// avoid the overhead of reading the whole state.
   Future<U> read<U>({U Function(T state)? query}) async {
     if (_isolate == null) {
@@ -143,7 +147,7 @@ class Agent<T> {
   ///
   /// See also:
   ///   * [resetError]
-  Future<Object?> get error async {
+  Future<AgentError?> get error async {
     if (_isolate == null) {
       throw StateError('Agent has been killed.');
     }
@@ -151,7 +155,7 @@ class Agent<T> {
     _sendPort
         .send(_Command(_Commands.getError, sendPort: receivePort.sendPort));
     dynamic value = await receivePort.first;
-    return value as Object?;
+    return value as AgentError?;
   }
 
   /// Resets the [Agent] so it can start receiving messages again.

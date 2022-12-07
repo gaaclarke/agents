@@ -58,7 +58,7 @@ void main() {
     });
     expect(() async {
       return await agent.read();
-    }, throwsA(isA<Exception>()));
+    }, throwsA(isA<AgentError>()));
   });
 
   test('deref after kill', () async {
@@ -107,5 +107,20 @@ void main() {
     expect(() async {
       await agent.resetError();
     }, throwsA(isA<StateError>()));
+  });
+
+  test('init error', () async {
+    final Agent<int> agent = await Agent.create(() => throw Exception('nope'));
+    expect(await agent.error, isNotNull);
+  });
+
+  test('read after init error', () async {
+    final Agent<int> agent = await Agent.create(() => throw Exception('nope'));
+    expect(await agent.error, isNotNull);
+    agent.resetError();
+    expect(await agent.error, isNull);
+    expect(() async {
+      await agent.read();
+    }, throwsA(isA<AgentError>()));
   });
 }
