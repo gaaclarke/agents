@@ -1,3 +1,8 @@
+# 0.2.0
+
+* Converted `Agent.error` to return an `AgentError` class.
+* Started handling errors in `Agent.create`.
+
 # 0.1.0
 
 * Adds `Agent.error` and `Agent.resetError`.
